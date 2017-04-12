@@ -13,12 +13,12 @@ namespace ProjectP
         // ip range finder.
         public static void rangeFinder(InterfaceData ipData)
         {
+            
             const int totalBits = 8;
             var stuff = ipData.IpAddressInformation.IPv4Mask.GetAddressBytes(); // get the bytes of the mask in array Form.
             var data = stuff.Select(d => Convert.ToString(d, 2)); // convert masks to binary...
             var moreShit = string.Join(" ", data); // join them by a space. probably don't need to join... just count 1s and 0s
             // that will identify host and subnets.
-            Console.ReadLine();
         }
 
         public static string IdentifyClass(IPAddress ipAddress)
