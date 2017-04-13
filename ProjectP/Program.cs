@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.Mail;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ProjectP
@@ -27,12 +29,54 @@ namespace ProjectP
         // totalSubnets = 2^1 = 2
         // totalHost = 2^7 = 128 - 2
         static string _output = "";
-        static Dictionary<string,string> _ipToMac = new Dictionary<string, string>();
+        static Dictionary<IPAddress, PhysicalAddress> _ipToMac = new Dictionary<IPAddress, PhysicalAddress>();
+
         static void Main(string[] args)
         {
+            var data = ReturnInterfaceData();
+            PopulateArpDict();
+            
+            Console.WriteLine($"DNS Suffix.......................... {data.DnsSuffix}");
+            Console.WriteLine(
+                $"IpAddress......................... {data.IpAddressInformation.Address}({Utils.IdentifyClass(data.IpAddressInformation.Address)})");
+            Console.WriteLine($"Subnet Mask....................... {data.IpAddressInformation.IPv4Mask}");
+            Console.ReadLine();
+        }
+
+
+        public static InterfaceData ReturnInterfaceData()
+        {
+            var network = NetworkInterface
+                .GetAllNetworkInterfaces()
+                .Where(intf => intf.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ||
+                               intf.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+                .Where(interf => interf.GetIPProperties().GetIPv4Properties().IsDhcpEnabled);
+
+            foreach (NetworkInterface ni in network)
+            {
+                var data = ni.GetIPProperties();
+                if (string.IsNullOrEmpty(data.DnsSuffix))
+                    continue;
+                InterfaceData interfaceData = new InterfaceData()
+                {
+                    DnsSuffix = data.DnsSuffix,
+                    DnsAddress = data.DnsAddresses,
+                    IpAddressInformation =
+                        data.UnicastAddresses.FirstOrDefault(d => d.Address.AddressFamily == AddressFamily.InterNetwork)
+                };
+                return interfaceData;
+            }
+
+            return null;
+        }
+
+        public static void PopulateArpDict()
+        {
+            Regex macAddressPattern = new Regex("([A-Fa-f0-9]{2}[-]){5}([A-Fa-f0-9]{2})"); 
+            //Regex IpAddressPattern = new Regex("([0-255][.]){3}([0-255])");
             // Start a new process that'll run the arp -a command.
             // the addresses in my arp table will be used to ping the victim.
-           
+
             Process cmd = new Process
             {
                 StartInfo =
@@ -46,74 +90,25 @@ namespace ProjectP
             };
             cmd.Start();
             var era = cmd
-                        .StandardOutput
-                        .ReadToEnd()
-                        .TrimEnd()
-                        .Split(new string[] {"\r\n"}, StringSplitOptions.None);
+                .StandardOutput
+                .ReadToEnd()
+                .TrimEnd()
+                .Split(new string[] {"\r\n"}, StringSplitOptions.None);
 
-            // skip the first 3 values as it is just useless meta data that i could give 2 shits about and split on spaces.
-            var moreSplitting = era.Skip(3).Select(machine => machine.Split(' '));
-
-            foreach (var info in moreSplitting)
+           
+            // strip off all the meta data from each interface arp table. 
+            var regexSplit = era.Where(z => macAddressPattern.IsMatch(z)).ToArray();
+           
+            foreach (var info in regexSplit)
             {
-                string ip = "";
-                string mac = "";
-
-                /* Note:
-                 * arp -a command gets displayed as followed.
-                 * 
-                 * Internet Address          Physical Address          Type
-                 * 192.168.12.45             D3-41-B6-F1-C4-E8         Dynamic.
-                 */
-                foreach (var dataEntry in info)
-                {
-                    // I only care about the ip Address and the Mac. skip the white spaces.
-                    if (string.IsNullOrEmpty(dataEntry))
-                        continue;
-                    else if (dataEntry.Contains("-")) // if it contains dashes then it's the mac.
-                    {
-                        mac = dataEntry;
-                        break; // Mac is the last thing i care about, break out and proceed to next entry.
-                    }
-                    else
-                        ip = dataEntry;
-                }
-                _ipToMac.Add(ip,mac); // add it to the dictionary. 
-            }
-        
-         
-
-            Console.ReadLine();
-            List<InterfaceData> interfaces = new List<InterfaceData>();
-            var network = NetworkInterface
-                .GetAllNetworkInterfaces()
-                .Where(intf => intf.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ||
-                               intf.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
-                .Where(interf => interf.GetIPProperties().GetIPv4Properties().IsDhcpEnabled);
+                // strip off all the white spaces.
+                var dataEntry = info.Trim().Split().Where(d => !string.IsNullOrEmpty(d)).ToArray();
+                string ip = dataEntry[0];
+                string mac = dataEntry[1].ToUpper(); // uppercase the mac because the parse function only accepts uppercase.
+                IPAddress ipAddress = IPAddress.Parse(ip);
+                PhysicalAddress physicalAddress = PhysicalAddress.Parse(mac);
                 
-            foreach (NetworkInterface ni in network)
-            {
-                var data = ni.GetIPProperties();
-                if (string.IsNullOrEmpty(data.DnsSuffix))
-                    continue;
-                InterfaceData interfaceData = new InterfaceData()
-                {
-                    DnsSuffix = data.DnsSuffix,
-                    DNSAddress = data.DnsAddresses,
-                    IpAddressInformation = data.UnicastAddresses.FirstOrDefault(d => d.Address.AddressFamily == AddressFamily.InterNetwork)
-
-                };
-                interfaces.Add(interfaceData);
             }
-            foreach (var data in interfaces)
-            {
-                Console.WriteLine($"DNS Suffix.......................... {data.DnsSuffix}");
-                Console.WriteLine($"IpAddress......................... {data.IpAddressInformation.Address}({Utils.IdentifyClass(data.IpAddressInformation.Address)})");
-                Console.WriteLine($"Subnet Mask....................... {data.IpAddressInformation.IPv4Mask}");
-                Utils.rangeFinder(data);
-
-            }
-            Console.ReadLine();
         }
     }
 }

@@ -23,15 +23,14 @@ namespace ProjectP
 
         public static string IdentifyClass(IPAddress ipAddress)
         {
-            var stuff = ipAddress.ToString().Split('.');
-            int firstOctect = int.Parse(stuff[0]);
+            var seperateOctets = ipAddress.ToString().Split('.');
+            int firstOctect = int.Parse(seperateOctets[0]);
 
             if (firstOctect <= 126)
                 return "Class A";
-            else if (firstOctect <= 191)
+            if (firstOctect <= 191)
                 return "Class B";
-            else
-                return "Class C";
+            return "Class C";
         }
     }
 }

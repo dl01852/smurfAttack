@@ -10,7 +10,7 @@ namespace ProjectP
     class InterfaceData
     {
         public string DnsSuffix { get; set; }
-        public IPAddressCollection DNSAddress { get; set; }
+        public IPAddressCollection DnsAddress { get; set; }
         public UnicastIPAddressInformation IpAddressInformation { get; set; }
     }
 }
