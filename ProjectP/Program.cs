@@ -35,7 +35,7 @@ namespace ProjectP
         {
             var data = ReturnInterfaceData();
             PopulateArpDict();
-            
+           _ipToMac = _ipToMac.Where(d => Utils.IdentifyClass(d.Key) == Utils.IdentifyClass(data.IpAddressInformation.Address)).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
             Console.WriteLine($"DNS Suffix.......................... {data.DnsSuffix}");
             Console.WriteLine(
                 $"IpAddress......................... {data.IpAddressInformation.Address}({Utils.IdentifyClass(data.IpAddressInformation.Address)})");
@@ -73,7 +73,6 @@ namespace ProjectP
         public static void PopulateArpDict()
         {
             Regex macAddressPattern = new Regex("([A-Fa-f0-9]{2}[-]){5}([A-Fa-f0-9]{2})"); 
-            //Regex IpAddressPattern = new Regex("([0-255][.]){3}([0-255])");
             // Start a new process that'll run the arp -a command.
             // the addresses in my arp table will be used to ping the victim.
 
@@ -107,7 +106,10 @@ namespace ProjectP
                 string mac = dataEntry[1].ToUpper(); // uppercase the mac because the parse function only accepts uppercase.
                 IPAddress ipAddress = IPAddress.Parse(ip);
                 PhysicalAddress physicalAddress = PhysicalAddress.Parse(mac);
-                
+
+                if (_ipToMac.ContainsKey(ipAddress))
+                    continue;
+                _ipToMac.Add(ipAddress, physicalAddress);
             }
         }
     }
